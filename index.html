@@ -2,84 +2,62 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Shape ERC‑4804 Website‑as‑NFT Viewer</title>
+  <title>Shape ERC‑4804 Viewer</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <style>
-    :root {
-      --bg: #0b0b0b;
-      --panel: #111;
-      --border: #222;
-      --text: #eaeaea;
-      --muted: #9aa0a6;
-      --accent: #7cffd1;
-    }
-
-    * { box-sizing: border-box; }
-
     body {
       margin: 0;
-      font-family: system-ui, -apple-system, sans-serif;
-      background: var(--bg);
-      color: var(--text);
+      font-family: system-ui, sans-serif;
+      background: #0b0b0b;
+      color: #eaeaea;
     }
 
     header {
       display: flex;
       align-items: center;
       gap: 12px;
-      padding: 16px 20px;
-      border-bottom: 1px solid var(--border);
+      padding: 14px 18px;
+      border-bottom: 1px solid #222;
     }
 
     header img {
-      height: 28px;
-    }
-
-    header h1 {
-      font-size: 16px;
-      margin: 0;
-      font-weight: 600;
-    }
-
-    header span {
-      color: var(--accent);
+      height: 26px;
     }
 
     main {
       max-width: 1200px;
       margin: auto;
-      padding: 20px;
+      padding: 16px;
     }
 
     .panel {
-      background: var(--panel);
-      border: 1px solid var(--border);
+      background: #111;
+      border: 1px solid #222;
       border-radius: 12px;
-      padding: 16px;
-      margin-bottom: 16px;
+      padding: 14px;
+      margin-bottom: 14px;
     }
 
     .controls {
       display: grid;
-      grid-template-columns: 1fr 120px auto;
-      gap: 10px;
+      grid-template-columns: 1fr 100px auto;
+      gap: 8px;
     }
 
     input {
       background: #0c0c0c;
-      border: 1px solid var(--border);
+      border: 1px solid #222;
       border-radius: 8px;
-      padding: 10px;
-      color: var(--text);
+      padding: 8px;
+      color: #eaeaea;
     }
 
     button {
-      background: var(--accent);
-      color: #000;
+      background: #7cffd1;
       border: none;
       border-radius: 8px;
-      padding: 10px 14px;
+      padding: 8px 12px;
       font-weight: 600;
       cursor: pointer;
     }
@@ -87,7 +65,7 @@
     iframe {
       width: 100%;
       height: 75vh;
-      border: 1px solid var(--border);
+      border: 1px solid #222;
       border-radius: 12px;
       background: white;
     }
@@ -95,20 +73,20 @@
     pre {
       background: #0c0c0c;
       border-radius: 12px;
-      padding: 16px;
+      padding: 14px;
       overflow: auto;
       font-size: 13px;
     }
 
     .hint {
       font-size: 13px;
-      color: var(--muted);
+      color: #9aa0a6;
     }
 
     .web3url {
       font-family: monospace;
       font-size: 12px;
-      color: var(--accent);
+      color: #7cffd1;
       margin-top: 6px;
       word-break: break-all;
     }
@@ -119,23 +97,17 @@
 
 <header>
   <img src="https://shape.network/favicon.ico" />
-  <h1>Shape <span>ERC‑4804</span> Website‑as‑NFT Viewer</h1>
+  <strong>Shape ERC‑4804 Viewer</strong>
 </header>
 
 <main>
 
   <div class="panel">
-    <div class="hint">
-      This NFT <strong>is</strong> a website, rendered directly from Shape.
-    </div>
-
     <div class="controls">
-
-      <input id="contract" placeholder="Contract address (0x…)" />
+      <input id="contract" placeholder="Contract address" />
       <input id="tokenId" placeholder="Token ID" />
       <button id="viewBtn">View</button>
     </div>
-
     <div id="status" class="hint"></div>
     <div id="web3url" class="web3url"></div>
   </div>
@@ -147,7 +119,9 @@
 <script type="module">
 import { ethers } from "https://cdn.jsdelivr.net/npm/ethers@6.8.1/+esm";
 
-const provider = new ethers.JsonRpcProvider("https://mainnet.shape.network");
+const provider = new ethers.JsonRpcProvider(
+  "https://mainnet.shape.network"
+);
 
 const abi = [
   "function tokenURI(uint256) view returns (string)",
@@ -161,8 +135,9 @@ const $ = id => document.getElementById(id);
 async function load() {
   const contract = $("contract").value;
   const tokenId = $("tokenId").value;
+
   $("output").innerHTML = "";
-  $("status").textContent = "Loading onchain website…";
+  $("status").textContent = "Loading…";
 
   const c = new ethers.Contract(contract, abi, provider);
 
@@ -177,37 +152,43 @@ async function load() {
     return;
   }
 
-  // Parse HTML properly
   const doc = new DOMParser().parseFromString(html, "text/html");
 
-  // Resolve ALL web3:// image references
   const imgs = [...doc.querySelectorAll("img")];
 
   if (imgs.length) {
     const bytes = await c.image(tokenId);
-    const mime = await c.imageMimeType(tokenId);
-    const blob = new Blob([bytes], { type: mime });
-    const url = URL.createObjectURL(blob);
+    const imgMime = await c.imageMimeType(tokenId);
+
+    let binary = "";
+    const chunk = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunk) {
+      binary += String.fromCharCode(
+        ...bytes.slice(i, i + chunk)
+      );
+    }
+
+    const base64 = btoa(binary);
+    const dataUrl = `data:${imgMime};base64,${base64}`;
 
     imgs.forEach(img => {
       if (img.src.startsWith("web3://")) {
-        img.src = url;
+        img.src = dataUrl;
       }
     });
   }
-
-  // Render via iframe
-  const iframe = document.createElement("iframe");
-  iframe.onload = () => $("status").textContent = "Rendered successfully.";
+const iframe = document.createElement("iframe");
   iframe.srcdoc = doc.documentElement.outerHTML;
   $("output").appendChild(iframe);
+
+  $("status").textContent = "Rendered";
 
   history.replaceState({}, "", `?contract=${contract}&tokenId=${tokenId}`);
 }
 
 $("viewBtn").onclick = load;
 
-// Auto‑load from URL
+// Auto‑load from URL params
 const p = new URLSearchParams(location.search);
 if (p.get("contract") && p.get("tokenId")) {
   $("contract").value = p.get("contract");
