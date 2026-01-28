@@ -156,7 +156,7 @@
   </div>
 
   <div class="panel">
-    <h3>tokenURI JSON (image shortened)</h3>
+    <h3>tokenURI JSON</h3>
     <pre id="jsonOut">(not loaded)</pre>
   </div>
 
@@ -210,9 +210,7 @@
   function shortenDataUri(s) {
     if (typeof s !== "string") return s;
     if (!s.startsWith("data:")) return s;
-    const max = 120;
-    if (s.length <= max) return s;
-    return s.slice(0, max) + "...(data uri trimmed)";
+    return s.length > 120 ? s.slice(0,120) + "...(trimmed)" : s;
   }
 
   function setBusy(busy) {
@@ -220,38 +218,49 @@
     $("load").textContent = busy ? "Loading…" : "Load tokenURI & image";
   }
 
-  async function renderImageFromJsonOrContract(contract, tokenIdRaw, parsedJson) {
+  async function renderImage(contractRepo, tokenIdRaw, parsedJson) {
     const imgEl = $("img");
     imgEl.removeAttribute("src");
-    imgEl.alt = "Loading...";
+    imgEl.alt = "Loading…";
 
     const imageField = parsedJson && parsedJson.image;
 
-    // Embedded data URI
+    // Case 1: embedded data:image
     if (typeof imageField === "string" && imageField.startsWith("data:image/")) {
       imgEl.src = imageField;
       imgEl.alt = `tokenId ${tokenIdRaw}`;
       return;
     }
 
-    // web3:// or missing image → fallback to contract.image()
-    if (
-      typeof imageField !== "string" ||
-      imageField.startsWith("web3://")
-    ) {
-      const tokenId = BigInt(tokenIdRaw);
-      const imageHex = await contract.image(tokenId);
-      const bytes = ethers.getBytes(imageHex);
+    // Case 2: web3:// cross‑contract image
+    if (typeof imageField === "string" && imageField.startsWith("web3://")) {
+      try {
+        const m = imageField.match(
+          /^web3:\/\/(0x[a-fA-F0-9]{40}):(\d+)\/image\/(\d+)$/
+        );
+        if (!m) throw new Error("Invalid web3 image URI");
 
-      const blob = new Blob([bytes], { type: "image/webp" });
-      const url = URL.createObjectURL(blob);
+        const [, imgContractAddr, chainId, imgTokenId] = m;
+        if (Number(chainId) !== CHAIN_ID) throw new Error("Wrong chain");
 
-      imgEl.src = url;
-      imgEl.alt = `tokenId ${tokenIdRaw}`;
-      return;
+        const provider = new ethers.JsonRpcProvider(RPC_URL, CHAIN_ID);
+        const imgContract = new ethers.Contract(imgContractAddr, ABI, provider);
+
+        const imageHex = await imgContract.image(BigInt(imgTokenId));
+        const bytes = ethers.getBytes(imageHex);
+
+        const blob = new Blob([bytes], { type: "image/webp" });
+        imgEl.src = URL.createObjectURL(blob);
+        imgEl.alt = `image ${imgTokenId}`;
+        return;
+
+      } catch (e) {
+        imgEl.alt = "Failed to load web3 image";
+        return;
+      }
     }
 
-    // Normal URL
+    // Case 3: normal URL
     if (typeof imageField === "string") {
       imgEl.src = imageField;
       imgEl.alt = `tokenId ${tokenIdRaw}`;
@@ -274,38 +283,35 @@
     setWeb3Urls(repo, tokenIdRaw);
     setParamsInUrl(repo, tokenIdRaw);
 
-    $("jsonOut").textContent = "Loading...";
+    $("jsonOut").textContent = "Loading…";
     $("img").removeAttribute("src");
-    $("img").alt = "Loading...";
+    $("img").alt = "Loading…";
     setBusy(true);
 
     try {
       const provider = new ethers.JsonRpcProvider(RPC_URL, CHAIN_ID);
-      const contract = new ethers.Contract(repo, ABI, provider);
+      const repoContract = new ethers.Contract(repo, ABI, provider);
 
-      const jsonText = await contract.tokenURI(BigInt(tokenIdRaw));
+      const jsonText = await repoContract.tokenURI(BigInt(tokenIdRaw));
 
       let parsed = null;
       try { parsed = JSON.parse(jsonText); } catch {}
 
       if (parsed && typeof parsed === "object") {
         const displayObj = JSON.parse(JSON.stringify(parsed));
-        if ("image" in displayObj) {
+        if ("image" in displayObj)
           displayObj.image = shortenDataUri(displayObj.image);
-        }
-        $("jsonOut").textContent = JSON.stringify(displayObj, null, 2);
+$("jsonOut").textContent = JSON.stringify(displayObj, null, 2);
       } else {
         $("jsonOut").textContent = jsonText;
       }
 
-      await renderImageFromJsonOrContract(contract, tokenIdRaw, parsed);
+      await renderImage(repoContract, tokenIdRaw, parsed);
 
     } catch (err) {
-      const msg = err && err.message ? err.message : String(err);
       $("jsonOut").textContent =
-        `Error: ${msg}\n\nIf you see a CORS error, use a browser‑friendly RPC or proxy.`;
-      $("img"
-).alt = "Error";
+        `Error: ${err.message || err}`;
+      $("img").alt = "Error";
     } finally {
       setBusy(false);
     }
