@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Shape ERC‑4804 Viewer</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Shape web3:// Token Viewer</title>
 
   <style>
     body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
       margin: 0;
-      font-family: system-ui, sans-serif;
       background: #0b0b0b;
       color: #eaeaea;
     }
@@ -17,8 +17,9 @@
       display: flex;
       align-items: center;
       gap: 12px;
-      padding: 14px 18px;
+      padding: 16px 20px;
       border-bottom: 1px solid #222;
+      background: #0f0f0f;
     }
 
     header img {
@@ -26,69 +27,100 @@
     }
 
     main {
-      max-width: 1200px;
+      max-width: 900px;
       margin: auto;
-      padding: 16px;
+      padding: 20px;
     }
 
     .panel {
       background: #111;
       border: 1px solid #222;
-      border-radius: 12px;
-      padding: 14px;
-      margin-bottom: 14px;
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 16px;
     }
 
-    .controls {
-      display: grid;
-      grid-template-columns: 1fr 100px auto;
-      gap: 8px;
-    }
-
-    input {
-      background: #0c0c0c;
-      border: 1px solid #222;
-      border-radius: 8px;
-      padding: 8px;
-      color: #eaeaea;
-    }
-
-    button {
-      background: #7cffd1;
-      border: none;
-      border-radius: 8px;
-      padding: 8px 12px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-
-    iframe {
-      width: 100%;
-      height: 75vh;
-      border: 1px solid #222;
-      border-radius: 12px;
-      background: white;
-    }
-
-    pre {
-      background: #0c0c0c;
-      border-radius: 12px;
-      padding: 14px;
-      overflow: auto;
-      font-size: 13px;
-    }
-
-    .hint {
+    .note {
+      background: #161616;
+      border: 1px solid #2a2a2a;
+      padding: 12px;
+      border-radius: 10px;
+      margin-bottom: 16px;
       font-size: 13px;
       color: #9aa0a6;
     }
 
-    .web3url {
-      font-family: monospace;
-      font-size: 12px;
-      color: #7cffd1;
+    label {
+      display: block;
+      margin-top: 14px;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    input {
+      width: 100%;
+      padding: 10px;
       margin-top: 6px;
-      word-break: break-all;
+      border: 1px solid #333;
+      border-radius: 10px;
+      background: #0c0c0c;
+      color: #eaeaea;
+      font-size: 14px;
+    }
+
+    button {
+      margin-top: 16px;
+      padding: 10px 14px;
+      border-radius: 12px;
+      border: none;
+      background: #7cffd1;
+      color: #000;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .row {
+      margin-top: 12px;
+    }
+
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    .small {
+      font-size: 12px;
+      color: #9aa0a6;
+    }
+
+    pre {
+      background: #0c0c0c;
+      padding: 14px;
+      border-radius: 12px;
+      overflow: auto;
+      max-height: 420px;
+      font-size: 13px;
+      border: 1px solid #222;
+    }
+
+    img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 14px;
+      margin-top: 12px;
+      border: 1px solid #222;
+      background: #000;
+    }
+
+    footer {
+      text-align: center;
+      padding: 16px;
+      font-size: 12px;
+      color: #666;
     }
   </style>
 </head>
@@ -97,104 +129,129 @@
 
 <header>
   <img src="https://shape.network/favicon.ico" />
-  <strong>Shape ERC‑4804 Viewer</strong>
+  <strong>Shape web3:// Token Viewer</strong>
 </header>
 
 <main>
 
-  <div class="panel">
-    <div class="controls">
-      <input id="contract" placeholder="Contract address" />
-      <input id="tokenId" placeholder="Token ID" />
-      <button id="viewBtn">View</button>
-    </div>
-    <div id="status" class="hint"></div>
-    <div id="web3url" class="web3url"></div>
+  <div class="note">
+    <div><strong>Network:</strong> Shape Mainnet</div>
+    <div class="mono small">RPC: https://mainnet.shape.network • Chain ID: 360</div>
   </div>
 
-  <div id="output" class="panel"></div>
+  <div class="panel">
+    <label>Repo contract address</label>
+    <input id="repo" placeholder="0x…" />
+
+    <label>Token ID</label>
+    <input id="tokenId" value="1" />
+
+    <button id="load">Load tokenURI & image</button>
+
+    <div class="row small mono">
+      <div><strong>web3:// URLs</strong></div>
+      <div id="w3token">(not loaded)</div>
+      <div id="w3image">(not loaded)</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>tokenURI JSON</h3>
+    <pre id="jsonOut">(not loaded)</pre>
+  </div>
+
+  <div class="panel">
+    <h3>Rendered image</h3>
+    <img id="img" alt="(not loaded)" />
+  </div>
 
 </main>
 
-<script type="module">
-import { ethers } from "https://cdn.jsdelivr.net/npm/ethers@6.8.1/+esm";
+<footer>
+  Onchain objects • Shape Network
+</footer>
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
+<script>
+(function () {
+  const RPC_URL = "https://mainnet.shape.network";
+  const CHAIN_ID = 360;
 
-const provider = new ethers.JsonRpcProvider(
-  "https://mainnet.shape.network"
-);
+  const ABI = [
+    "function tokenURI(uint256 tokenId) view returns (string)",
+    "function image(uint256 tokenId) view returns (bytes)"
+  ];
 
-const abi = [
-  "function tokenURI(uint256) view returns (string)",
-  "function tokenURIMimeType(uint256) view returns (string)",
-  "function image(uint256) view returns (bytes)",
-  "function imageMimeType(uint256) view returns (string)"
-];
+  const $ = (id) => document.getElementById(id);
 
-const $ = id => document.getElementById(id);
-
-async function load() {
-  const contract = $("contract").value;
-  const tokenId = $("tokenId").value;
-
-  $("output").innerHTML = "";
-  $("status").textContent = "Loading…";
-
-  const c = new ethers.Contract(contract, abi, provider);
-
-  const mime = await c.tokenURIMimeType(tokenId);
-  const html = await c.tokenURI(tokenId);
-
-  $("web3url").textContent =
-    `web3://shape/${contract}/tokenURI/${tokenId}`;
-
-  if (!mime.includes("html")) {
-    $("output").innerHTML = `<pre>${html}</pre>`;
-    return;
+  function setWeb3Urls(repo, tokenId) {
+    $("w3token").textContent =
+      `web3://${repo}:${CHAIN_ID}/tokenURI/${tokenId}`;
+    $("w3image").textContent =
+      `web3://${repo}:${CHAIN_ID}/image/${tokenId}`;
   }
 
-  const doc = new DOMParser().parseFromString(html, "text/html");
+  function setBusy(busy) {
+    $("load").disabled = busy;
+    $("load").textContent = busy ? "Loading…" : "Load tokenURI & image";
+  }
 
-  const imgs = [...doc.querySelectorAll("img")];
+  async function load() {
+    const repo = $("repo").value.trim();
+    const tokenId = $("tokenId").value.trim();
+    if (!repo || !tokenId) return;
 
-  if (imgs.length) {
-    const bytes = await c.image(tokenId);
-    const imgMime = await c.imageMimeType(tokenId);
+    setBusy(true);
+    setWeb3Urls(repo, tokenId);
 
-    let binary = "";
-    const chunk = 0x8000;
-    for (let i = 0; i < bytes.length; i += chunk) {
-      binary += String.fromCharCode(
-        ...bytes.slice(i, i + chunk)
-      );
+    try {
+      const provider = new ethers.JsonRpcProvider(RPC_URL);
+      const contract = new ethers.Contract(repo, ABI, provider);
+
+      // tokenURI
+      const uri = await contract.tokenURI(tokenId);
+      let parsed;
+      try {
+        parsed = JSON.parse(uri);
+        if (parsed.image && parsed.image.length > 120) {
+          parsed.image = parsed.image.slice(0, 120) + "…";
+        }
+        $("jsonOut").textContent =
+          JSON.stringify(parsed, null, 2);
+      } catch {
+        $("jsonOut").textContent = uri;
+      }
+
+      // image
+      const bytes = await contract.image(tokenId);
+      let binary = "";
+      const chunk = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode(
+          ...bytes.slice(i, i + chunk)
+        );
+      }
+
+      const base64 = btoa(binary);
+      $("img").src = `data:image/*;base64,${base64}`;
+
+    } catch (err) {
+      $("jsonOut").textContent = err.message;
+      $("img").removeAttribute("src");
     }
 
-    const base64 = btoa(binary);
-    const dataUrl = `data:${imgMime};base64,${base64}`;
-
-    imgs.forEach(img => {
-      if (img.src.startsWith("web3://")) {
-        img.src = dataUrl;
-      }
-    });
+    setBusy(false);
   }
-const iframe = document.createElement("iframe");
-  iframe.srcdoc = doc.documentElement.outerHTML;
-  $("output").appendChild(iframe);
 
-  $("status").textContent = "Rendered";
+  $("load").onclick = load;
 
-  history.replaceState({}, "", `?contract=${contract}&tokenId=${tokenId}`);
-}
-
-$("viewBtn").onclick = load;
-
-// Auto‑load from URL params
-const p = new URLSearchParams(location.search);
-if (p.get("contract") && p.get("tokenId")) {
-  $("contract").value = p.get("contract");
-  $("tokenId").value = p.get("tokenId");
-  load();
-}
+  // Auto‑load from URL
+  const p = new URLSearchParams(location.search);
+  if (p.get("contract") && p.get("tokenId")) {
+    $("repo").value = p.get("contract");
+    $("tokenId").value = p.get("tokenId");
+    load();
+  }
+})();
 </script>
 
 </body>
