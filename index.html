@@ -1,105 +1,272 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Shape ERC‑4804 Viewer</title>
+  <title>Shape ERC‑4804 Website‑as‑NFT Viewer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
   <style>
-    body {
-      font-family: system-ui, sans-serif;
-      background: #0b0b0b;
-      color: #eaeaea;
-      margin: 0;
-      padding: 16px;
+    :root {
+      --bg: #0b0b0b;
+      --panel: #111;
+      --border: #222;
+      --text: #eaeaea;
+      --muted: #9aa0a6;
+      --accent: #7cffd1;
+      --accent-dim: #3aae8a;
     }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
     header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, #0e0e0e, #0a0a0a);
+    }
+
+    header img {
+      height: 28px;
+    }
+
+    header h1 {
+      font-size: 16px;
+      margin: 0;
+      font-weight: 600;
+    }
+
+    header span {
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    main {
+      padding: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
       margin-bottom: 16px;
     }
-    input, button {
-      padding: 8px;
-      margin-right: 8px;
+
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr 120px auto;
+      gap: 10px;
     }
+
+    input {
+      background: #0c0c0c;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      color: var(--text);
+      font-size: 14px;
+    }
+
+    button {
+      background: var(--accent);
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: var(--accent-dim);
+    }
+
     #status {
-      opacity: 0.7;
-      margin: 8px 0;
+      margin-top: 8px;
+      font-size: 13px;
+      color: var(--muted);
     }
+
     iframe {
       width: 100%;
-      height: 80vh;
-      border: 1px solid #333;
-      background: white;
+      height: 70vh;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #fff;
     }
+
     pre {
-      background: #111;
+      background: #0c0c0c;
+      border: 1px solid var(--border);
+      border-radius: 12px;
       padding: 16px;
       overflow: auto;
+      font-size: 13px;
+      color: #cfd8dc;
+    }
+
+    footer {
+      text-align: center;
+      padding: 16px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .hint {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .web3url {
+      font-family: monospace;
+      font-size: 12px;
+      color: var(--accent);
+      word-break: break-all;
     }
   </style>
 </head>
 
 <body>
+
 <header>
-  <h2>🧩 Website‑as‑NFT Viewer (ERC‑4804)</h2>
-  <p>This NFT is a website served directly from Shape.</p>
-
-  <input id="contract" placeholder="Contract address" />
-  <input id="tokenId" placeholder="Token ID" />
-  <button onclick="load()">View</button>
-
-  <div id="status"></div>
+  <!-- You can replace this with an official Shape logo SVG if you want -->
+  <img src="https://shape.network/favicon.ico" alt="Shape logo" />
+  <h1>Shape <span>ERC‑4804</span> Website‑as‑NFT Viewer</h1>
 </header>
 
-<div id="output"></div>
+<main>
+
+  <div class="panel">
+    <div class="hint">
+      This NFT is a website served directly from Shape using <strong>ERC‑4804</strong>.
+    </div>
+
+    <div class="controls">
+      <input id="contract" placeholder="Contract address (0x…)" />
+      <input id="tokenId" placeholder="Token ID" />
+      <button id="viewBtn">View</button>
+    </div>
+
+    <div id="status"></div>
+    <div id="web3url" class="web3url"></div>
+  </div>
+
+  <div id="output" class="panel"></div>
+
+</main>
+
+<footer>
+  Onchain objects • Shape Network • web3://
+</footer>
 
 <script type="module">
 import { ethers } from "https://cdn.jsdelivr.net/npm/ethers@6.8.1/+esm";
 
-const provider = new ethers.JsonRpcProvider(
-  "https://mainnet.shape.network"
-);
+  const provider = new ethers.JsonRpcProvider(
+    "https://mainnet.shape.network"
+  );
 
-async function load() {
-  const contract = document.getElementById("contract").value;
-  const tokenId = document.getElementById("tokenId").value;
+  const abi = [
+    "function tokenURI(uint256) view returns (string)",
+    "function tokenURIMimeType(uint256) view returns (string)",
+    "function image(uint256) view returns (bytes)",
+    "function imageMimeType(uint256) view returns (string)"
+  ];
+
+  const contractInput = document.getElementById("contract");
+  const tokenInput = document.getElementById("tokenId");
   const status = document.getElementById("status");
   const output = document.getElementById("output");
+  const web3urlEl = document.getElementById("web3url");
+  const viewBtn = document.getElementById("viewBtn");
 
-  status.textContent = "Fetching onchain content…";
-  output.innerHTML = "";
+  function qs(name) {
+    return new URLSearchParams(window.location.search).get(name);
+  }
 
-  try {
-    const abi = [
-      "function tokenURI(uint256) view returns (string)",
-      "function tokenURIMimeType(uint256) view returns (string)"
-    ];
+  async function load() {
+    const contract = contractInput.value;
+    const tokenId = tokenInput.value;
 
-    const c = new ethers.Contract(contract, abi, provider);
-
-    const mime = await c.tokenURIMimeType(tokenId);
-    const data = await c.tokenURI(tokenId);
-
-    status.textContent = `MIME type: ${mime}`;
-
-    if (mime.includes("html")) {
-      const iframe = document.createElement("iframe");
-      iframe.srcdoc = data;
-output.appendChild(iframe);
-    } else if (mime.includes("json")) {
-      const pre = document.createElement("pre");
-      pre.textContent = JSON.stringify(JSON.parse(data), null, 2);
-      output.appendChild(pre);
-    } else {
-      const pre = document.createElement("pre");
-      pre.textContent = data;
-      output.appendChild(pre);
+    if (!contract || tokenId === "") {
+      status.textContent = "Enter a contract address and token ID.";
+      return;
     }
 
-  } catch (err) {
-    status.textContent = "Error loading content";
-    output.textContent = err.message;
-  }
-}
+    output.innerHTML = "";
+    status.textContent = "Fetching onchain content…";
 
-window.load = load;
+    const web3url = `web3://shape/${contract}/tokenURI/${tokenId}`;
+    web3urlEl.textContent = web3url;
+
+    try {
+      const c = new ethers.Contract(contract, abi, provider);
+
+      const mime = await c.tokenURIMimeType(tokenId);
+      let data = await c.tokenURI(tokenId);
+
+      status.textContent = `Loaded • MIME type: ${mime}`;
+
+      if (mime.includes("html")) {
+        let html = data;
+
+        // Try resolving image()
+        try {
+          const imageBytes = await c.image(tokenId);
+          const imageMime = await c.imageMimeType(tokenId);
+
+          const blob = new Blob([imageBytes], { type: imageMime });
+          const url = URL.createObjectURL(blob);
+
+          html = html.replace(
+            /web3:\/\/[^"]+\/image\/\d+/g,
+            url
+          );
+        } catch (_) {}
+
+        const iframe = document.createElement("iframe");
+        iframe.srcdoc = html;
+        output.appendChild(iframe);
+
+      } else if (mime.includes("json")) {
+        const pre = document.createElement("pre");
+        pre.textContent = JSON.stringify(JSON.parse(data), null, 2);
+        output.appendChild(pre);
+      } else {
+        const pre = document.createElement("pre");
+        pre.textContent = data;
+        output.appendChild(pre);
+      }
+
+      history.replaceState({}, "", `?contract=${contract}&tokenId=${tokenId}`);
+
+    } catch (err) {
+      status.textContent = "Error loading content";
+      output.innerHTML = `<pre>${err.message}</pre>`;
+    }
+  }
+
+  viewBtn.onclick = load;
+
+  // Auto‑load from URL params
+  if (qs("contract") && qs("tokenId")) {
+    contractInput.value = qs("contract");
+    tokenInput.value = qs("tokenId");
+    load();
+  }
 </script>
+
 </body>
 </html>
