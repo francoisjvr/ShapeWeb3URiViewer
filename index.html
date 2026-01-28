@@ -1,198 +1,105 @@
 <!doctype html>
-<html lang="en">
+<html>
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Shape OnChain web3:// Token Viewer</title>
+  <title>Shape ERC‑4804 Viewer</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 18px; line-height: 1.4; }
-    .note { background: #fff6d6; border: 1px solid #e6d18a; padding: 10px; border-radius: 8px; }
-    label { display: block; margin-top: 12px; font-weight: 600; }
-    input { width: 100%; padding: 10px; margin-top: 6px; border: 1px solid #ccc; border-radius: 8px; }
-    button { margin-top: 14px; padding: 10px 14px; border: 1px solid #333; border-radius: 10px; cursor: pointer; }
-    button:disabled { opacity: 0.6; cursor: not-allowed; }
-    pre { background: #f4f4f4; padding: 12px; border-radius: 10px; overflow: auto; max-height: 420px; }
-    img { max-width: 100%; height: auto; border: 1px solid #ccc; border-radius: 10px; margin-top: 12px; }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-    .row { margin-top: 10px; }
-    .small { font-size: 12px; color: #444; }
+    body {
+      font-family: system-ui, sans-serif;
+      background: #0b0b0b;
+      color: #eaeaea;
+      margin: 0;
+      padding: 16px;
+    }
+    header {
+      margin-bottom: 16px;
+    }
+    input, button {
+      padding: 8px;
+      margin-right: 8px;
+    }
+    #status {
+      opacity: 0.7;
+      margin: 8px 0;
+    }
+    iframe {
+      width: 100%;
+      height: 80vh;
+      border: 1px solid #333;
+      background: white;
+    }
+    pre {
+      background: #111;
+      padding: 16px;
+      overflow: auto;
+    }
   </style>
 </head>
+
 <body>
-  <h2>Shape Onchain web3:// Token Viewer</h2>
+<header>
+  <h2>🧩 Website‑as‑NFT Viewer (ERC‑4804)</h2>
+  <p>This NFT is a website served directly from Shape.</p>
 
-  <div class="note">
-    <div><strong>Note:</strong> This viewer is hardcoded for Shape Network Repos only for the time being.</div>
-    <div class="small mono">RPC: https://mainnet.shape.network | Chain ID: 360</div>
-  </div>
+  <input id="contract" placeholder="Contract address" />
+  <input id="tokenId" placeholder="Token ID" />
+  <button onclick="load()">View</button>
 
-  <label>Repo contract address on Shape Network</label>
-  <input id="repo" placeholder="0x..." />
+  <div id="status"></div>
+</header>
 
-  <label>Token ID</label>
-  <input id="tokenId" value="1" />
+<div id="output"></div>
 
-  <button id="load">Load tokenURI and image</button>
+<script type="module">
+import { ethers } from "https://cdn.jsdelivr.net/npm/ethers@6.8.1/+esm";
 
-  <div class="row">
-    <div><strong>Computed web3 URLs</strong></div>
-    <div class="mono small" id="w3token">(not loaded)</div>
-    <div class="mono small" id="w3image">(not loaded)</div>
-  </div>
+const provider = new ethers.JsonRpcProvider(
+  "https://mainnet.shape.network"
+);
 
-  <h3>tokenURI JSON (image shortened for display)</h3>
-  <pre id="jsonOut">(not loaded)</pre>
+async function load() {
+  const contract = document.getElementById("contract").value;
+  const tokenId = document.getElementById("tokenId").value;
+  const status = document.getElementById("status");
+  const output = document.getElementById("output");
 
-  <h3>Rendered image</h3>
-  <img id="img" alt="(not loaded)" />
+  status.textContent = "Fetching onchain content…";
+  output.innerHTML = "";
 
-  <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
+  try {
+    const abi = [
+      "function tokenURI(uint256) view returns (string)",
+      "function tokenURIMimeType(uint256) view returns (string)"
+    ];
 
-  <script>
-    (function () {
-      const RPC_URL = "https://mainnet.shape.network";
-      const CHAIN_ID = 360;
+    const c = new ethers.Contract(contract, abi, provider);
 
-      const ABI = [
-        "function tokenURI(uint256 tokenId) view returns (string)",
-        "function image(uint256 tokenId) view returns (bytes)"
-      ];
+    const mime = await c.tokenURIMimeType(tokenId);
+    const data = await c.tokenURI(tokenId);
 
-      const $ = (id) => document.getElementById(id);
+    status.textContent = `MIME type: ${mime}`;
 
-      function setWeb3Urls(repo, tokenId) {
-        $("w3token").textContent = `web3://${repo}:${CHAIN_ID}/tokenURI/${tokenId}`;
-        $("w3image").textContent = `web3://${repo}:${CHAIN_ID}/image/${tokenId}`;
-      }
+    if (mime.includes("html")) {
+      const iframe = document.createElement("iframe");
+      iframe.srcdoc = data;
+output.appendChild(iframe);
+    } else if (mime.includes("json")) {
+      const pre = document.createElement("pre");
+      pre.textContent = JSON.stringify(JSON.parse(data), null, 2);
+      output.appendChild(pre);
+    } else {
+      const pre = document.createElement("pre");
+      pre.textContent = data;
+      output.appendChild(pre);
+    }
 
-      function setBusy(isBusy) {
-        $("load").disabled = isBusy;
-        $("load").textContent = isBusy ? "Loading..." : "Load tokenURI and image";
-      }
+  } catch (err) {
+    status.textContent = "Error loading content";
+    output.textContent = err.message;
+  }
+}
 
-      function getParams() {
-        const p = new URLSearchParams(window.location.search);
-        return {
-          repo: (p.get("repo") || "").trim(),
-          id: (p.get("id") || p.get("tokenId") || "").trim()
-        };
-      }
-
-      function setParamsInUrl(repo, id) {
-        const u = new URL(window.location.href);
-        u.searchParams.set("repo", repo);
-        u.searchParams.set("id", String(id));
-        history.replaceState(null, "", u.toString());
-      }
-
-      function shortenDataUri(s) {
-        if (typeof s !== "string") return s;
-        if (!s.startsWith("data:")) return s;
-        const max = 120;
-        if (s.length <= max) return s;
-        return s.slice(0, max) + "...(data uri trimmed)";
-      }
-
-      async function renderImageFromJsonOrContract(contract, tokenIdRaw, parsedJson) {
-        const imgEl = $("img");
-        imgEl.removeAttribute("src");
-        imgEl.alt = "Loading...";
-
-        const imageField = parsedJson && parsedJson.image;
-
-        // Case 1: embedded data URI inside JSON (your current situation)
-        if (typeof imageField === "string" && imageField.startsWith("data:image/")) {
-          imgEl.src = imageField;
-          imgEl.alt = `tokenId ${tokenIdRaw}`;
-          return;
-        }
-
-        // Case 2: web3 reference inside JSON, or no image field at all
-        // If image is web3://, we still fetch via contract.image(tokenId).
-        // If image is missing, also try contract.image(tokenId).
-        if (typeof imageField !== "string" || imageField.startsWith("web3://")) {
-          const tokenId = BigInt(tokenIdRaw);
-          const imageHex = await contract.image(tokenId); // bytes as 0x...
-          const bytes = ethers.getBytes(imageHex);
-          const blob = new Blob([bytes], { type: "image/webp" });
-          const url = URL.createObjectURL(blob);
-          imgEl.src = url;
-          imgEl.alt = `tokenId ${tokenIdRaw}`;
-          return;
-        }
-
-        // Case 3: normal URL (http, ipfs gateway, etc)
-        if (typeof imageField === "string") {
-          imgEl.src = imageField;
-          imgEl.alt = `tokenId ${tokenIdRaw}`;
-          return;
-        }
-
-        imgEl.alt = "No image field found.";
-      }
-
-      async function loadToken() {
-        const repoRaw = $("repo").value.trim();
-        const tokenIdRaw = $("tokenId").value.trim();
-
-        if (!repoRaw) { alert("Repo address required"); return; }
-        if (!ethers.isAddress(repoRaw)) { alert("Invalid repo address"); return; }
-        if (!tokenIdRaw || isNaN(Number(tokenIdRaw))) { alert("Token ID must be a number"); return; }
-
-        const repo = ethers.getAddress(repoRaw.toLowerCase());
-        setWeb3Urls(repo, tokenIdRaw);
-        setParamsInUrl(repo, tokenIdRaw);
-
-        $("jsonOut").textContent = "Loading...";
-        $("img").removeAttribute("src");
-        $("img").alt = "Loading...";
-        setBusy(true);
-
-        try {
-          const provider = new ethers.JsonRpcProvider(RPC_URL, CHAIN_ID);
-          const contract = new ethers.Contract(repo, ABI, provider);
-
-          const jsonText = await contract.tokenURI(BigInt(tokenIdRaw));
-
-          // Parse JSON if possible
-          let parsed = null;
-          try {
-            parsed = JSON.parse(jsonText);
-          } catch {
-            parsed = null;
-          }
-
-          // Display JSON but shorten embedded base64 so the page stays responsive
-          if (parsed && typeof parsed === "object") {
-            const displayObj = JSON.parse(JSON.stringify(parsed));
-            if ("image" in displayObj) displayObj.image = shortenDataUri(displayObj.image);
-            $("jsonOut").textContent = JSON.stringify(displayObj, null, 2);
-          } else {
-            $("jsonOut").textContent = jsonText;
-          }
-
-          await renderImageFromJsonOrContract(contract, tokenIdRaw, parsed);
-        } catch (err) {
-          const msg = (err && err.message) ? err.message : String(err);
-          $("jsonOut").textContent =
-            `Error: ${msg}
-
-If you see a CORS related message, the Shape RPC endpoint may be blocking browser requests.
-Fix: use a browser-friendly RPC (CORS enabled) or host a tiny proxy on your VPS.`;
-          $("img").alt = "Error";
-        } finally {
-          setBusy(false);
-        }
-      }
-
-      $("load").addEventListener("click", loadToken);
-
-      // Deep link
-      const params = getParams();
-      if (params.repo) $("repo").value = params.repo;
-      if (params.id) $("tokenId").value = params.id;
-      if (params.repo && params.id) loadToken();
-    })();
-  </script>
+window.load = load;
+</script>
 </body>
 </html>
